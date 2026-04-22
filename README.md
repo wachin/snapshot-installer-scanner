@@ -1,7 +1,7 @@
 
 # Snapshot Installer Scanner (PyQt6)
 
-Aplicación estilo ThinApp simplificada para Windows 10.
+Para Windows 10.
 
 ## Qué hace
 1. Escanea una ruta (por ejemplo `C:\`).
