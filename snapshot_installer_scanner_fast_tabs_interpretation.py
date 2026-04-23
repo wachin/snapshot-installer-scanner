@@ -5,20 +5,28 @@ import csv
 import time
 import sqlite3
 import traceback
+import winreg
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QObject, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QObject, QSettings, QThread, pyqtSignal
+from PyQt6.QtGui import QColor, QIcon, QPalette
 from PyQt6.QtWidgets import (
     QApplication, QFileDialog, QGridLayout, QGroupBox, QHBoxLayout,
-    QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
+    QComboBox, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
     QPlainTextEdit, QProgressBar, QVBoxLayout, QWidget, QTabWidget,
     QTableWidget, QTableWidgetItem, QHeaderView
 )
 
 
 APP_TITLE = "Snapshot Installer Scanner"
+APP_ICON_PATH = Path(__file__).resolve().parent / "assets" / "snapshot-installer-scanner-logo.svg"
+UI_THEME_OPTIONS = [
+    ("system", "Tema del sistema"),
+    ("light", "Tema Claro"),
+    ("dark", "Tema Oscuro"),
+]
 DB_SCHEMA = """
 PRAGMA journal_mode=WAL;
 
@@ -98,6 +106,219 @@ def human_size(num_bytes: int) -> str:
     if idx == 0:
         return f"{int(size)} bytes"
     return f"{size:.2f} {units[idx]}"
+
+
+def build_app_icon() -> QIcon:
+    if APP_ICON_PATH.exists():
+        return QIcon(str(APP_ICON_PATH))
+    return QIcon()
+
+
+def build_light_palette() -> QPalette:
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor("#f3f6fb"))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor("#14213d"))
+    palette.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#edf2f7"))
+    palette.setColor(QPalette.ColorRole.Text, QColor("#122033"))
+    palette.setColor(QPalette.ColorRole.Button, QColor("#ffffff"))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#132238"))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor("#1d4ed8"))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#6b7280"))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#122033"))
+    return palette
+
+
+def build_dark_palette() -> QPalette:
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor("#111827"))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor("#e5eefb"))
+    palette.setColor(QPalette.ColorRole.Base, QColor("#0f172a"))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#172033"))
+    palette.setColor(QPalette.ColorRole.Text, QColor("#e5eefb"))
+    palette.setColor(QPalette.ColorRole.Button, QColor("#172033"))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#e5eefb"))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor("#22c55e"))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#08120d"))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#8b97ab"))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#1f2937"))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#f8fafc"))
+    return palette
+
+
+def build_theme_stylesheet(theme_mode: str) -> str:
+    if theme_mode == "dark":
+        return """
+QWidget {
+    background-color: #111827;
+    color: #e5eefb;
+}
+QMainWindow, QTabWidget::pane, QPlainTextEdit, QLineEdit, QTableWidget {
+    background-color: #0f172a;
+    color: #e5eefb;
+}
+QGroupBox {
+    border: 1px solid #334155;
+    border-radius: 10px;
+    margin-top: 12px;
+    padding-top: 14px;
+    font-weight: 600;
+    background-color: #111827;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 6px;
+    color: #bfdbfe;
+}
+QPushButton {
+    background-color: #1d4ed8;
+    color: #eff6ff;
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 14px;
+}
+QPushButton:hover {
+    background-color: #2563eb;
+}
+QPushButton:disabled {
+    background-color: #334155;
+    color: #94a3b8;
+}
+QLineEdit, QPlainTextEdit, QComboBox, QTableWidget {
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 6px;
+    selection-background-color: #22c55e;
+    selection-color: #08120d;
+}
+QComboBox::drop-down {
+    border: 0;
+    width: 28px;
+}
+QTabBar::tab {
+    background: #172033;
+    color: #cbd5e1;
+    padding: 10px 16px;
+    margin-right: 4px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+QTabBar::tab:selected {
+    background: #1d4ed8;
+    color: #ffffff;
+}
+QHeaderView::section {
+    background-color: #172033;
+    color: #dbeafe;
+    border: 0;
+    border-right: 1px solid #334155;
+    padding: 8px;
+}
+QProgressBar {
+    border: 1px solid #334155;
+    border-radius: 8px;
+    text-align: center;
+    background-color: #0f172a;
+}
+QProgressBar::chunk {
+    background-color: #22c55e;
+    border-radius: 7px;
+}
+"""
+
+    return """
+QWidget {
+    background-color: #f3f6fb;
+    color: #14213d;
+}
+QMainWindow, QTabWidget::pane, QPlainTextEdit, QLineEdit, QTableWidget {
+    background-color: #ffffff;
+    color: #122033;
+}
+QGroupBox {
+    border: 1px solid #d7dfeb;
+    border-radius: 10px;
+    margin-top: 12px;
+    padding-top: 14px;
+    font-weight: 600;
+    background-color: #ffffff;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 6px;
+    color: #1e3a8a;
+}
+QPushButton {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 14px;
+}
+QPushButton:hover {
+    background-color: #1d4ed8;
+}
+QPushButton:disabled {
+    background-color: #cbd5e1;
+    color: #64748b;
+}
+QLineEdit, QPlainTextEdit, QComboBox, QTableWidget {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 6px;
+    selection-background-color: #bfdbfe;
+    selection-color: #0f172a;
+}
+QComboBox::drop-down {
+    border: 0;
+    width: 28px;
+}
+QTabBar::tab {
+    background: #dbeafe;
+    color: #1e293b;
+    padding: 10px 16px;
+    margin-right: 4px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+QTabBar::tab:selected {
+    background: #2563eb;
+    color: #ffffff;
+}
+QHeaderView::section {
+    background-color: #e2e8f0;
+    color: #1e293b;
+    border: 0;
+    border-right: 1px solid #cbd5e1;
+    padding: 8px;
+}
+QProgressBar {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    text-align: center;
+    background-color: #ffffff;
+}
+QProgressBar::chunk {
+    background-color: #2563eb;
+    border-radius: 7px;
+}
+"""
+
+
+def detect_windows_theme_mode() -> str:
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return "light" if int(value) else "dark"
+    except Exception:
+        return "light"
 
 
 class SnapshotDatabase:
@@ -332,7 +553,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_TITLE)
+        self.setWindowIcon(build_app_icon())
         self.resize(1140, 820)
+        self.settings = QSettings("SnapshotInstallerScanner", "SnapshotInstallerScanner")
 
         self.worker_thread = None
         self.worker = None
@@ -346,6 +569,9 @@ class MainWindow(QMainWindow):
         self.after_label_edit = QLineEdit("DESPUÉS")
         self.before_id_edit = QLineEdit()
         self.after_id_edit = QLineEdit()
+        self.theme_combo = QComboBox()
+        for theme_value, theme_label in UI_THEME_OPTIONS:
+            self.theme_combo.addItem(theme_label, theme_value)
 
         self.include_paths_edit = QPlainTextEdit()
         self.exclude_paths_edit = QPlainTextEdit()
@@ -386,6 +612,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._connect_signals()
         self._load_default_filters()
+        self._load_ui_preferences()
         self.refresh_snapshots()
 
     def _build_ui(self):
@@ -449,6 +676,8 @@ class MainWindow(QMainWindow):
         cfg_grid.addWidget(self.before_label_edit, 3, 1)
         cfg_grid.addWidget(QLabel("Etiqueta segundo snapshot:"), 4, 0)
         cfg_grid.addWidget(self.after_label_edit, 4, 1)
+        cfg_grid.addWidget(QLabel("Tema visual:"), 5, 0)
+        cfg_grid.addWidget(self.theme_combo, 5, 1)
 
         opt_layout.addWidget(cfg_group)
         opt_layout.addStretch(1)
@@ -489,12 +718,42 @@ class MainWindow(QMainWindow):
         self.btn_interpret.clicked.connect(self.run_interpretation)
         self.btn_cancel.clicked.connect(self.cancel_scan)
         self.btn_load_recommended.clicked.connect(self._load_default_filters)
+        self.theme_combo.currentIndexChanged.connect(self.on_theme_changed)
 
     def _load_default_filters(self):
         if not self.include_paths_edit.toPlainText().strip():
             self.include_paths_edit.setPlainText("\n".join(DEFAULT_SCAN_HINTS))
         if not self.exclude_paths_edit.toPlainText().strip():
             self.exclude_paths_edit.setPlainText("\n".join(DEFAULT_EXCLUDES))
+
+    def _load_ui_preferences(self):
+        saved_theme = self.settings.value("ui/theme_mode", "system", str)
+        index = self.theme_combo.findData(saved_theme)
+        if index < 0:
+            index = self.theme_combo.findData("system")
+        self.theme_combo.setCurrentIndex(index)
+        self.apply_theme(saved_theme)
+
+    def _get_selected_theme_mode(self) -> str:
+        return self.theme_combo.currentData() or "system"
+
+    def apply_theme(self, theme_mode: str):
+        app = QApplication.instance()
+        if app is None:
+            return
+
+        effective_theme = detect_windows_theme_mode() if theme_mode == "system" else theme_mode
+        app.setStyle("Fusion")
+        if effective_theme == "dark":
+            app.setPalette(build_dark_palette())
+        else:
+            app.setPalette(build_light_palette())
+        app.setStyleSheet(build_theme_stylesheet(effective_theme))
+
+    def on_theme_changed(self, _index=None):
+        theme_mode = self._get_selected_theme_mode()
+        self.settings.setValue("ui/theme_mode", theme_mode)
+        self.apply_theme(theme_mode)
 
     def append_log(self, text: str):
         self.main_log_box.appendPlainText(text)
@@ -962,6 +1221,7 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    app.setWindowIcon(build_app_icon())
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
