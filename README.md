@@ -45,8 +45,10 @@ pip install PyQt6
 En la carpeta del proyecto:
 
 ```bash
-python snapshot_installer_scanner_fast_tabs_interpretation.py
+python snapshot_installer_scanner.py
 ```
+
+![](vx_images/02-Snapshot-Installer-Scanner_v1.0.png)
 
 ## Flujo recomendado (tipo “antes/después”)
 - Ejecuta la aplicación como **Administrador** si vas a escanear rutas amplias (por ejemplo `C:\`), para reducir errores por permisos.
